@@ -2,11 +2,43 @@ provider "aws" {
     region = "eu-west-1"
 }
 
+variable "server_port" {
+    description = "The port the server will use for HTTP requests"
+    type = number
+    default = 8080
+}
+
 resource "aws_instance" "example" {
     ami ="ami-04df7d76c1b804451"
     instance_type = "t3.micro"
+    vpc_security_group_ids = [aws_security_group.example.id]
+
+    user_data = <<-EOF
+                #!/bin/bash
+                echo "Hello, World!" > index.html
+                nohup busybox httpd -f -p ${var.server_port} &
+                EOF
+    
+    user_data_replace_on_change = true
 
     tags = {
         Name = "terraform-example"
     }
+}
+
+resource "aws_security_group" "example" {
+    name        = "terraform-example-sg"
+    description = "Allow HTTP inbound traffic"
+
+    ingress {
+        from_port   = var.server_port
+        to_port     = var.server_port
+        protocol    = "tcp"
+        cidr_blocks = [ "0.0.0.0/0" ]
+    }
+}
+
+output "instance_public_ip" {
+    value = aws_instance.example.public_ip
+    description = "The public IP address of the EC2 instance"
 }
